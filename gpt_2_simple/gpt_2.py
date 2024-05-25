@@ -50,7 +50,8 @@ def download_file_with_progress(url_base, sub_dir, model_name, file_name):
 
     # set to download 1MB at a time. This could be much larger with no issue
     DOWNLOAD_CHUNK_SIZE = 1024 * 1024
-    r = requests.get(url_base + "/models/" + model_name + "/" + file_name, stream=True)
+    url = f"{url_base}/{file_name}"
+    r = requests.get(url, stream=True)
     with open(os.path.join(sub_dir, file_name), 'wb') as f:
         file_size = int(r.headers["content-length"])
         with tqdm(ncols=100, desc="Fetching " + file_name,
@@ -76,20 +77,29 @@ def download_gpt2(model_dir='models', model_name='124M'):
 
     Adapted from https://github.com/openai/gpt-2/blob/master/download_model.py
     """
-
+    if model_name == 'distilgpt2':
+        # Download from Hugging Face
+        url_base = "https://huggingface.co/distilgpt2/resolve/main"
+        files = [
+            'config.json', 'pytorch_model.bin', 'vocab.json', 'merges.txt'
+        ]
+    else:
+        # Download from OpenAI's GPT-2 model repository
+        url_base = "https://openaipublic.blob.core.windows.net/gpt-2"
+        files = [
+            'checkpoint', 'encoder.json', 'hparams.json',
+            'model.ckpt.data-00000-of-00001', 'model.ckpt.index',
+            'model.ckpt.meta', 'vocab.bpe'
+        ]
+    
     # create the <model_dir>/<model_name> subdirectory if not present
     sub_dir = os.path.join(model_dir, model_name)
     if not os.path.exists(sub_dir):
         os.makedirs(sub_dir)
     sub_dir = sub_dir.replace('\\', '/')  # needed for Windows
-
-    for file_name in ['checkpoint', 'encoder.json', 'hparams.json',
-                      'model.ckpt.data-00000-of-00001', 'model.ckpt.index',
-                      'model.ckpt.meta', 'vocab.bpe']:
-        download_file_with_progress(url_base="https://openaipublic.blob.core.windows.net/gpt-2",
-                                    sub_dir=sub_dir,
-                                    model_name=model_name,
-                                    file_name=file_name)
+ 
+    for file_name in files:
+        download_file_with_progress(url_base, sub_dir, model_name, file_name)
 
 
 def start_tf_sess(threads=-1, server=None):
@@ -126,7 +136,7 @@ def get_available_gpus():
 def finetune(sess,
              dataset,
              steps=-1,
-             model_name='124M',
+             model_name='distilgpt2',
              model_dir='models',
              combine=50000,
              batch_size=1,
@@ -184,11 +194,11 @@ def finetune(sess,
         raise ValueError(
             "Can't get samples longer than window size: %s" % hparams.n_ctx)
 
-    if model_name not in ['117M', '124M']:
-        print('For larger models, the recommended finetune() parameters are:')
-        print('\tuse_memory_saving_gradients = True')
-        print('\tonly_train_transformer_layers = True')
-        print('\taccumulate_gradients = 1\n')
+    # if model_name not in ['117M', '124M']:
+    #     print('For larger models, the recommended finetune() parameters are:')
+    #     print('\tuse_memory_saving_gradients = True')
+    #     print('\tonly_train_transformer_layers = True')
+    #     print('\taccumulate_gradients = 1\n')
 
     context = tf.compat.v1.placeholder(tf.int32, [batch_size, None])
     gpus = []
